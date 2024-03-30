@@ -1,0 +1,158 @@
+HOLT WINTERS
+
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+from sklearn.metrics import mean_squared_error
+import numpy as np
+
+# Convert the 'Period' to datetime and set it as the index
+df = data['AOP 2024']
+df['Period'] = pd.to_datetime(df['Period'])
+df.set_index('Period', inplace=True)
+
+# Extract the 'Inventory' series
+inventory_series = df['Inventory']
+
+# Split the data into training and testing sets
+# Training data will be everything up to the end of 2022
+# Testing data will be the year 2023
+train_inventory = inventory_series[:'2022-12-31']
+test_inventory = inventory_series['2023-01-01':'2023-12-31']
+
+# Check the last few entries of the training set and the first few entries of the testing set to verify the split
+train_inventory.tail(), test_inventory.head()
+
+
+# Fit the Holt-Winters model on the training data
+model_hw = ExponentialSmoothing(train_inventory, trend="add", seasonal="add", seasonal_periods=12).fit()
+
+# Forecast for the year 2023
+forecast_2023_hw = model_hw.forecast(steps=12)
+
+# Calculate Mean Squared Error for the forecast
+mse_2023_hw = mean_squared_error(test_inventory, forecast_2023_hw)
+rmse_2023_hw = np.sqrt(mse_2023_hw)
+
+forecast_2023_hw, rmse_2023_hw
+
+import matplotlib.pyplot as plt
+
+# Plotting actual vs. forecasted values for 2023
+plt.figure(figsize=(10, 6))
+plt.plot(test_inventory, label='Actual Inventory', marker='o')
+plt.plot(forecast_2023_hw, label='HW Forecast', marker='x')
+plt.title('Actual vs Holt-Winters Forecast Inventory for 2023')
+plt.xlabel('Date')
+plt.ylabel('Inventory')
+plt.legend()
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+# Removing NaN inventory values for 2024 from the dataset
+cleaned_inventory_series = inventory_series.dropna()
+
+# Re-fit the Holt-Winters model on the cleaned dataset excluding NaN values for 2024
+model_hw_cleaned = ExponentialSmoothing(cleaned_inventory_series, trend="add", seasonal="add", seasonal_periods=12).fit()
+
+# Forecast inventory for 2024 using the cleaned dataset
+forecast_2024_hw_cleaned = model_hw_cleaned.forecast(steps=12)
+
+forecast_2024_hw_cleaned
+
+# Plotting actual inventory values up to 2023 and forecasting for 2024 as a continuation
+plt.figure(figsize=(12, 7))
+plt.plot(cleaned_inventory_series, label='Actual Inventory', marker='o')
+plt.plot(forecast_2024_hw_cleaned, label='2024 HW Forecast', marker='x', linestyle='--')
+plt.title('Actual Inventory and Holt-Winters Forecast for 2024')
+plt.xlabel('Date')
+plt.ylabel('Inventory')
+plt.legend()
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+-----------------------------------------------------------------------
+
+SARIMAX
+
+
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+# Extract the COGS series and ensure it aligns with the inventory series
+cogs_series = df['Cogs']
+
+# Ensuring the COGS series does not contain NaN values for the forecasting period (2024)
+# Since we're forecasting for 2024, any NaN values for COGS in 2024 would need to be handled, but based on the instruction,
+# it sounds like COGS data is already available for 2024.
+
+# Splitting the COGS data into training and testing sets along with inventory data
+train_cogs = cogs_series[:'2022-12-31']
+test_cogs = cogs_series['2023-01-01':'2023-12-31']
+
+# Ensure the COGS series is aligned correctly for training and testing
+train_cogs.tail(), test_cogs.head()
+
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+
+# Extract the COGS series and ensure it aligns with the inventory series
+cogs_series = df['Cogs']
+
+# Ensuring the COGS series does not contain NaN values for the forecasting period (2024)
+# Since we're forecasting for 2024, any NaN values for COGS in 2024 would need to be handled, but based on the instruction,
+# it sounds like COGS data is already available for 2024.
+
+# Splitting the COGS data into training and testing sets along with inventory data
+train_cogs = cogs_series[:'2022-12-31']
+test_cogs = cogs_series['2023-01-01':'2023-12-31']
+
+# Ensure the COGS series is aligned correctly for training and testing
+train_cogs.tail(), test_cogs.head()
+
+# Plotting actual vs. forecasted values for 2023 using both HW and SARIMAX models
+plt.figure(figsize=(12, 7))
+plt.plot(test_inventory, label='Actual Inventory', marker='o')
+plt.plot(forecast_2023_hw, label='HW Forecast', marker='x', linestyle='--')
+plt.plot(forecast_2023_sarimax, label='SARIMAX Forecast', marker='^', linestyle='--')
+plt.title('Actual vs Forecast Inventory for 2023 (HW vs SARIMAX)')
+plt.xlabel('Date')
+plt.ylabel('Inventory')
+plt.legend()
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
+
+
+# Forecast inventory for 2024 using the SARIMAX model, incorporating COGS for 2024 as the external variable
+# Since we have COGS data for 2024, it will be used as the external variable for the forecast
+cogs_2024 = cogs_series['2024-01-01':'2024-12-31']
+
+# Re-fit the SARIMAX model on the entire dataset (up to the end of 2023) with COGS as the external regressor
+sarimax_model_full = SARIMAX(cleaned_inventory_series,
+                             exog=cogs_series[:'2023-12-31'],
+                             order=(1, 1, 1),
+                             seasonal_order=(1, 1, 1, 12),
+                             enforce_stationarity=False,
+                             enforce_invertibility=False).fit()
+
+# Forecast for 2024
+forecast_2024_sarimax = sarimax_model_full.forecast(steps=12, exog=cogs_2024)
+
+forecast_2024_sarimax
+
+# Plotting actual inventory values up to 2023, HW forecast for 2024, and SARIMAX forecast for 2024 as a continuation
+plt.figure(figsize=(14, 8))
+plt.plot(cleaned_inventory_series, label='Actual Inventory', marker='o')
+plt.plot(forecast_2024_hw_cleaned, label='2024 HW Forecast', marker='x', linestyle='--')
+plt.plot(forecast_2024_sarimax, label='2024 SARIMAX Forecast', marker='^', linestyle='--')
+plt.title('Actual Inventory and Forecast for 2024 (HW vs SARIMAX)')
+plt.xlabel('Date')
+plt.ylabel('Inventory')
+plt.legend()
+plt.xticks(rotation=45)
+plt.grid(True)
+plt.tight_layout()
+plt.show()
